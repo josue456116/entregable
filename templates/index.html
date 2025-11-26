@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detector de Figuras</title>
+
+    <!-- Fuente moderna -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+    <style>
+    body {
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(135deg, #eef2f7, #d9e2ec);
+        margin: 0;
+        padding: 20px;
+        text-align: center;
+        color: #2c3e50;
+    }
+
+    h1 {
+        font-size: 36px;
+        margin-bottom: 20px;
+        font-weight: 700;
+        color: #1b263b;
+        text-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+        font-weight: 600;
+        color: #1b263b;
+        margin-bottom: 15px;
+    }
+
+    .main-container {
+        background: #ffffff;
+        width: 95%;
+        max-width: 1300px;
+        margin: 20px auto;
+        padding: 35px;
+        border-radius: 18px;
+        box-shadow: 0 8px 35px rgba(0,0,0,0.12);
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 40px;
+        flex-wrap: wrap;
+        animation: fadeIn 0.6s ease;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .section {
+        flex: 1;
+        min-width: 350px;
+        text-align: center;
+        padding: 20px;
+        background: #f9fbfd;
+        border-radius: 14px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        transition: 0.25s ease;
+    }
+
+    .section:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+    }
+
+    /* Canvas */
+    canvas {
+        border: 3px dashed #7f8c8d;
+        margin-top: 20px;
+        cursor: crosshair;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: inset 0 0 15px rgba(0,0,0,0.05);
+        transition: 0.2s ease;
+    }
+
+    canvas:hover {
+        border-color: #2d89ef;
+    }
+
+    /* Botones generales */
+    button {
+        margin: 12px;
+        padding: 12px 25px;
+        cursor: pointer;
+        font-size: 16px;
+        border-radius: 10px;
+        border: none;
+        font-weight: 600;
+        transition: 0.25s;
+        letter-spacing: 0.3px;
+    }
+
+    #clearBtn {
+        background: #ff5c5c;
+        color: white;
+        box-shadow: 0 4px 10px rgba(255, 92, 92, 0.4);
+    }
+
+    #clearBtn:hover {
+        background: #e63939;
+        transform: scale(1.07);
+    }
+
+    #submitBtn {
+        background: #3498db;
+        color: white;
+        box-shadow: 0 4px 10px rgba(52, 152, 219, 0.4);
+    }
+
+    #submitBtn:hover {
+        background: #217dbb;
+        transform: scale(1.07);
+    }
+
+    /* Input para subir imágenes */
+    input[type="file"] {
+        margin-top: 10px;
+        padding: 8px;
+        border-radius: 12px;
+        background: #eef3f8;
+        border: 2px solid #d0d6dd;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+
+    input[type="file"]:hover {
+        border-color: #3498db;
+        background: #f3faff;
+    }
+
+    /* Cámara */
+    img.camera-feed {
+        width: 100%;
+        max-width: 520px;
+        margin-top: 20px;
+        border-radius: 14px;
+        border: 3px solid #4a5b6a;
+        box-shadow: 0 6px 25px rgba(0,0,0,0.20);
+    }
+
+    /* Imagen procesada */
+    #processedImage {
+        border-radius: 14px;
+        margin-top: 20px;
+        border: 3px solid #4a5b6a;
+        max-width: 100%;
+        box-shadow: 0 6px 25px rgba(0,0,0,0.20);
+    }
+</style>
+
+</head>
+<body>
+
+    <h1>Detector de Figuras</h1>
+
+    <div class="main-container">
+
+        <!-- CÁMARA IZQUIERDA -->
+        <div class="section">
+            <h2>Cámara en tiempo real</h2>
+            <img class="camera-feed" src="{{ url_for('video_feed') }}" alt="Cámara en vivo">
+        </div>
+
+        <!-- DIBUJO + SUBIR IMAGEN DERECHA -->
+        <div class="section">
+            <h2>Dibuja tu figura</h2>
+
+            <form id="canvasForm" action="/" method="POST" enctype="multipart/form-data">
+                <canvas id="drawingCanvas" width="400" height="400"></canvas><br>
+
+                <button type="button" id="clearBtn">Limpiar</button>
+
+                <br><br>
+
+                <!-- 🔵 INPUT PARA SUBIR IMÁGENES (AGREGADO) -->
+                <h3>O subir una imagen</h3>
+                <input type="file" name="imagen" accept="image/*">
+
+                <br><br>
+
+                <button type="submit" id="submitBtn">Detectar Figura</button>
+            </form>
+
+            {% if output_image %}
+                <h3>Resultado:</h3>
+                <img id="processedImage" src="{{ output_image }}" alt="Imagen Procesada">
+            {% endif %}
+        </div>
+
+    </div>
+
+    <script>
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Fondo blanco inicial
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        let drawing = false;
+
+        canvas.addEventListener('mousedown', () => drawing = true);
+        canvas.addEventListener('mouseup', () => drawing = false);
+        canvas.addEventListener('mouseout', () => drawing = false);
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!drawing) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // Botón limpiar
+        document.getElementById('clearBtn').onclick = () => {
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        };
+
+        // Convertir canvas en imagen REAL antes de enviar (solo si no se subió imagen)
+        document.getElementById('canvasForm').onsubmit = () => {
+
+            const fileInput = document.querySelector('input[name="imagen"]');
+
+            // Si el usuario subió una imagen, NO convertir el canvas
+            if (fileInput.files.length > 0) {
+                return true;
+            }
+
+            // Si NO subió imagen → enviar el canvas como archivo
+            const dataURL = canvas.toDataURL('image/png');
+            const arr = dataURL.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) u8arr[n] = bstr.charCodeAt(n);
+
+            const blob = new Blob([u8arr], { type: mime });
+            const file = new File([blob], "canvas.png", { type: "image/png" });
+
+            const oldInputs = document.querySelectorAll('input[name="imagen"]');
+            oldInputs.forEach(i => i.remove());
+
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+
+            const input = document.createElement("input");
+            input.type = "file";
+            input.name = "imagen";
+            input.files = dataTransfer.files;
+            input.style.display = "none";
+
+            document.getElementById("canvasForm").appendChild(input);
+        };
+    </script>
+
+</body>
+</html>
